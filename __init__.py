@@ -9,7 +9,7 @@ bl_info = {
     "author": "Atticus",
     "description": "",
     "blender": (2, 83, 2),
-    "version": (0, 0, 1),
+    "version": (0, 0, 2),
     "location": "Side Menu",
     "warning": "",
     "wiki_url": "",
@@ -149,13 +149,6 @@ class ApplyRA(Operator):
     def execute(self, context):
         obj =  context.object
         obj_name = obj.name
-        #restore
-        obj.RAobj = False
-        Object.Copy_rotate = True
-        Object.Ct = ''
-        Object.V_num = 8
-        Object.Rad = 2
-        Object.Copy_apply = False
 
         for o in context.scene.objects:
             if o.name.startswith("RA_") and o.name.endswith("_" + obj.name):
@@ -175,9 +168,16 @@ class ApplyRA(Operator):
                         bpy.data.objects.remove(bpy.data.objects[child.name], do_unlink=True)
 
                     obj = bpy.data.objects[obj_name + '_new']
-
+        # restore
+        obj.RAobj = False
+        obj.Copy_rotate = True
+        obj.Ct = ''
+        obj.V_num = 8
+        obj.Rad = 2
+        obj.Copy_apply = False
         obj.parent = None
-
+        obj.parent = None
+    
         return {'FINISHED'}
 
 
