@@ -20,7 +20,6 @@ import bpy
 from bpy.types import Object,Scene, Panel, Operator
 from bpy.props import *
 
-
 #
 # ____ _    ____ ____ ____
 # |    |    |__| [__  [__
@@ -60,8 +59,6 @@ class RA_Panel(Panel):
                 else:
                     row = col.row(align = True)
                     row.operator("object.add_ring_array")
-
-
 
 
 def creat_RA(context):
@@ -151,7 +148,6 @@ class DeleteRA(Operator):
 
     def execute(self, context):
         obj = context.object
-        objName = obj.name
         obj.RAobj = False
         for o in context.visible_objects:
             if o.name.startswith("RA_") and o.name.endswith("_"+ obj.name):
