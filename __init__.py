@@ -1,7 +1,7 @@
 # -*- coding =utf-8 -*-
 # 灵感来源 卯月的小插件
-# https://space.bilibili.com/29298335
-# 最后调用实例的方法来实现
+# url: https://space.bilibili.com/29298335
+# 此插件使用实例的方法来实现
 # 生成文字画: http://www.network-science.de/ascii/
 
 bl_info = {
@@ -42,12 +42,19 @@ class RA_Panel(Panel):
         else:
             col = layout.column()
             col.scale_y = 1.5
-            col.prop_search(obj, "Ct", context.scene, "objects")
+            row = col.row(align=False)
+            row.prop_search(obj, "Ct", context.scene, "objects")
+            row.scale_x = 1.25
+            row.prop(obj, "Copy_rotate",text = '',icon = "ORIENTATION_GIMBAL")
             if context.object.RAobj:
                 col.prop(obj, "V_num")
                 col.prop(obj, "Rad")
+
                 row = col.row(align = True)
                 row.operator('object.apply_ring_array')
+                sub  =row.row(align = True)
+                sub.prop(obj,'Copy_apply',text ='',icon = 'MESH_DATA')
+                row.separator()
                 row.operator('object.del_ring_array')
 
             else:
@@ -62,20 +69,24 @@ class RA_Panel(Panel):
 
 
 def creat_RA(context):
-    # copy
+    # set
     obj = context.object
     obj.RAobj = True
-
+    # get center
     try:
         CTobject = context.scene.objects[obj.Ct]
     except Exception:
         CTobject = ''
 
     bpy.ops.object.select_all(action='DESELECT')
-
-    for o in context.visible_objects:
+    # remove object  data
+    for o in context.scene.objects:
         if o.name.startswith("RA_"):
-            bpy.data.objects.remove(o)
+            objs = bpy.data.objects
+            objs.remove(objs[o.name], do_unlink=True)
+    for block in bpy.data.meshes:
+        if block.users == 0:
+            bpy.data.meshes.remove(block)
 
     # add circle
     bpy.ops.mesh.primitive_circle_add(
@@ -96,7 +107,7 @@ def creat_RA(context):
     circle.instance_type = 'VERTS'
     circle.show_instancer_for_viewport = True
     circle.show_instancer_for_render = True
-    circle.use_instance_vertices_rotation = True
+    circle.use_instance_vertices_rotation = obj.Copy_rotate
     # restore active
     bpy.ops.object.select_all(action='DESELECT')
     context.view_layer.objects.active = obj
@@ -114,7 +125,6 @@ class CreatRA(Operator):
         obj = context.object
         if obj.RAobj:
             creat_RA(context)
-        return {'FINISHED'}
 
     def execute(self, context):
         creat_RA(context)
@@ -124,27 +134,57 @@ class CreatRA(Operator):
 class ApplyRA(Operator):
     bl_idname = "object.apply_ring_array"
     bl_label = "Apply"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    soure_obj_name = StringProperty(name="Source", default='',)
+
+    def getChildren(myObject):
+        children = []
+        for ob in bpy.data.objects:
+            if ob.parent == myObject:
+                children.append(ob)
+
+        return children
 
     def execute(self, context):
-        obj = context.object
+        obj =  context.object
+        obj_name = obj.name
+        #restore
         obj.RAobj = False
-        for o in context.visible_objects:
-            if o.name.startswith("RA_") and o.name.endswith("_"+ obj.name):
+        Object.Copy_rotate = True
+        Object.Ct = ''
+        Object.V_num = 8
+        Object.Rad = 2
+        Object.Copy_apply = False
+
+        for o in context.scene.objects:
+            if o.name.startswith("RA_") and o.name.endswith("_" + obj.name):
                 context.view_layer.objects.active = o
                 o.select_set(True)
-                bpy.ops.object.duplicates_make_real(use_base_parent = True)
-                break
-        #clear parents
-        bpy.ops.object.select_all(action='DESELECT')
-        context.view_layer.objects.active = obj
-        obj.select_set(True)
-        bpy.ops.object.parent_clear(type='CLEAR')
+                bpy.ops.object.duplicates_make_real(use_base_parent=True)
+
+                # apply mesh
+                if obj.Copy_apply:
+                    children = getChildren(o)
+                    for child in children:
+                        newObject = child.copy()
+                        newObject.name = child.name + '_new'
+                        newObject.data = child.data.copy()
+                        newObject.parent = o
+                        bpy.context.collection.objects.link(newObject)
+                        bpy.data.objects.remove(bpy.data.objects[child.name], do_unlink=True)
+
+                    obj = bpy.data.objects[obj_name + '_new']
+
+        obj.parent = None
+
         return {'FINISHED'}
 
 
 class DeleteRA(Operator):
     bl_idname = "object.del_ring_array"
     bl_label = "Delete"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         obj = context.object
@@ -154,7 +194,6 @@ class DeleteRA(Operator):
                 bpy.data.objects.remove(o)
 
         return {'FINISHED'}
-
 
 #
 # ___  ____ ____ ____
@@ -183,6 +222,9 @@ def update_categort(self, context):
         print("\n[{}]\n{}\n\nError:\n{}".format(__name__, message, e))
         pass
 
+def CN_ON(context):
+    if context.preferences.view.use_translate_interface == True:
+        return  bpy.app.translations.locale == 'zh_CN'
 
 class Preferences(bpy.types.AddonPreferences):
     bl_idname = __name__
@@ -194,9 +236,19 @@ class Preferences(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        col = layout.box()
-        row = col.row(align=True)
-        row.prop(self, "category", text="Tab Category")
+        row = layout.row(align=True)
+        row.separator()
+        if CN_ON(context):
+            row.label(text='Tips: 如果没有中心物体, 则以自己为中心')
+        else:
+            row.label(text="Tips: If no center object, RingArray active object itself")
+        row.separator()
+        row = layout.row(align=True)
+
+        row.separator()
+        row.prop(self, "category", text="",icon = "ALIGN_JUSTIFY")
+        row.label(text="")
+        row.separator()
 
 #
 # ___  ____ ____ ___  ____
@@ -205,11 +257,35 @@ class Preferences(bpy.types.AddonPreferences):
 #
 #
 
-Object.RAobj = BoolProperty(name="Use RA", default=False, )
-Object.Ct = StringProperty(name="Center", default='', update=CreatRA.update)
-Object.V_num = IntProperty(name='Count', default=6, min=3, soft_max=24, update=CreatRA.update)
-Object.Rad = FloatProperty(name='Radius', default=1, min=0, soft_max=12, update=CreatRA.update)
+def props():
+    Object.RAobj = BoolProperty(
+        name="Use RA", default=False,
+    )
 
+    Object.Copy_rotate = BoolProperty(
+        name="Rotate", default=True,
+        update=CreatRA.update
+    )
+
+    Object.Ct = StringProperty(
+        name="Center", default='',
+        update=CreatRA.update
+    )
+
+    Object.V_num = IntProperty(
+        name='Count', default=8, min=3, soft_max=24,
+        update=CreatRA.update
+    )
+
+    Object.Rad = FloatProperty(
+        name='Radius', default=2,
+        min=0, soft_max=12,
+        update=CreatRA.update
+    )
+
+    Object.Copy_apply = BoolProperty(
+        name="Copy", default=False
+    )
 
 #
 # ____ ____ ____ _ ____ ___ ____ ____
@@ -223,6 +299,7 @@ classes = (
 )
 
 def register():
+    props()
     for cls in classes:
         bpy.utils.register_class(cls)
 
