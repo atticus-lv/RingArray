@@ -41,7 +41,8 @@ def draw_callback_px(obj, context):
     text = [["Wheel Scroll OR Move mouse (shift to slow speed)","滑动滚轮或者移动鼠标（按shift微调）"],
             ["'A' to apply instance, Ctrl 'A' to apply mesh","按 A 应用实例，Ctrl A 应用网格"],
             [ "Radius: ",'半径：'],
-            ["Number: ",'数量：'],]
+            ["Number: ",'数量：'],
+            ["'R' to copy rotate",'按 R 复制旋转']]
     # check CN
     if CN_ON(context):
         index = 1
@@ -53,7 +54,10 @@ def draw_callback_px(obj, context):
     blf.position(font_id, 30,1020, 0)
     blf.draw(font_id,text[0][index] )
     blf.position(font_id, 30, 1000, 0)
-    blf.draw(font_id,text[1][index] )
+    blf.draw(font_id, text[4][index])
+    blf.position(font_id, 30, 980, 0)
+    blf.draw(font_id, text[1][index])
+
     # parameter
     blf.size(font_id, 12, 175)
     blf.position(font_id, 30, 100, 0)
@@ -84,9 +88,9 @@ def get_children(myObject):
     return children
 
 
-def get_center_obj(context):
+def get_center_obj(context,obj):
     try:
-        CTobject = context.scene.objects[context.object.Ct]
+        CTobject = context.scene.objects[obj.Ct]
     except Exception:
         CTobject = ''
     return CTobject
@@ -124,10 +128,13 @@ def creat_RA(context):
     remove_objects(context)
     clear_meshes()
 
+    centerobj = get_center_obj(context,obj)
+
     circle = add_circle(context,obj)
 
-    if get_center_obj(context) != '':
-        circle.location = CTobject.location
+    if centerobj != '':
+        circle.location = centerobj.location
+        # print(circle.location)
         obj.parent = circle
         obj.location = (0,0,0)
     else:
@@ -155,7 +162,7 @@ def get_3dview_size(context):
 class CreatRA(Operator):
     bl_idname = "object.add_ring_array"
     bl_label = "Add Ring Array"
-    bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING'} # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
+    bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING', 'UNDO'} # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
 
     number: bpy.props.IntProperty()
     radius: bpy.props.FloatProperty()
@@ -167,17 +174,17 @@ class CreatRA(Operator):
 
     def modal(self, context, event):
         obj = context.object
-        self.execute(context)
+        creat_RA(context)
         # allow navigation
         if event.type in {'MIDDLEMOUSE',}:
             return {'PASS_THROUGH'}
         # number
         elif event.type == "WHEELUPMOUSE":
             obj.V_num += 1
-            self.execute(context)
+            creat_RA(context)
         elif event.type == "WHEELDOWNMOUSE":
             obj.V_num -= 1
-            self.execute(context)
+            creat_RA(context)
         #radius
         elif event.type == 'MOUSEMOVE':
             self.mouseDX = self.mouseDX - event.mouse_x
@@ -189,16 +196,19 @@ class CreatRA(Operator):
             # reset
             self.mouseDX = event.mouse_x
             self.mouseDY = event.mouse_y
-        # confirem/cancel
+        # confirm / cancel
         elif event.type == 'LEFTMOUSE':
             # clean draw
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
+
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
             obj.V_num = self.number
             obj.Rad = self.radius
+            bpy.ops.object.del_ring_array() #delete
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
+
         elif event.type == 'A' and event.value == 'PRESS':
             if event.ctrl:
                 bpy.ops.object.apply_ring_array(apply_mesh = True)
@@ -207,23 +217,25 @@ class CreatRA(Operator):
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
 
-        return {'RUNNING_MODAL'}
+        elif event.type == 'R' and event.value == 'PRESS':
+            if obj.Copy_rotate :
+                obj.Copy_rotate = False
+            else:
+                obj.Copy_rotate = True
 
-    def execute(self, context):
-        creat_RA(context)
+        return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
         obj = context.object
         self.number = obj.V_num
+        self.radius = obj.Rad
         self.mouseDX = event.mouse_x
         self.mouseDY = event.mouse_y
-        self.radius = obj.Rad
         #draw
         if context.area.type == 'VIEW_3D':
             args = (obj, context)
             self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
-
-        context.window_manager.modal_handler_add(self)
+            context.window_manager.modal_handler_add(self)
 
         return {'RUNNING_MODAL'}
 
@@ -233,8 +245,8 @@ class ApplyRA(Operator):
     bl_label = "Apply"
     bl_options = {'REGISTER', 'UNDO'}
 
-    post_name = StringProperty(name="Suffix", default='new_', )
-    apply_mesh = BoolProperty(name= 'Apply Instance Mesh ',default = False)
+    post_name: StringProperty(name="Suffix", default='new_', )
+    apply_mesh: BoolProperty(name= 'Apply Instance Mesh ',default = False)
 
     def execute(self, context):
         obj = context.object
@@ -248,14 +260,21 @@ class ApplyRA(Operator):
                 o.select_set(True)
                 bpy.ops.object.duplicates_make_real(use_base_parent=True)
 
-                children = get_children(o)
-                for child in children:
+                for child in get_children(o):
                     if self.apply_mesh:
                         # apply mesh
-                        make_mesh(child,self)
-                        obj = bpy.data.objects[self.post_name + obj_name]
+                        if child.name.startswith(obj.name) and child.name.endswith(obj.name):
+                            pass
+                        else:
+                            make_mesh(child,self)
+                        # new = bpy.data.objects[self.post_name + obj_name]
                     else:
-                        child.name = self.post_name + obj_name
+                        if child.name.startswith(obj.name) and child.name.endswith(obj.name):
+                            pass
+                        else:
+                            child.name = self.post_name + obj_name
+
+
         # restore
         obj.name = obj_name
         obj.Copy_rotate = True
