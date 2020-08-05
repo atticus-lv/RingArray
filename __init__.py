@@ -2,15 +2,15 @@
 # 灵感来源 卯月的小插件
 # url: https://space.bilibili.com/29298335
 # 此插件使用实例的方法来实现
-# 生成文字画: http://www.network-science.de/ascii/
+# 文字画: http://www.network-science.de/ascii/
 
 bl_info = {
     "name": "Ring Array",
     "author": "Atticus",
     "description": "",
     "blender": (2, 83, 2),
-    "version": (0, 0, 2),
-    "location": "Side Menu",
+    "version": (0, 0, 3),
+    "location": "Side Menu -> Edit",
     "warning": "",
     "wiki_url": "",
     "category": "Object"
@@ -32,13 +32,34 @@ from bpy.props import *
 #
 
 
+def CN_ON(context):
+    if context.preferences.view.use_translate_interface == True:
+        return bpy.app.translations.locale == 'zh_CN'
+
+
 def draw_callback_px(obj, context):
+    text = [["Wheel Scroll OR Move mouse (shift to slow speed)","滑动滚轮或者移动鼠标（按shift微调）"],
+            ["'A' to apply instance, Ctrl 'A' to apply mesh","按 A 应用实例，Ctrl A 应用网格"],
+            [ "Radius: ",'半径：'],
+            ["Number: ",'数量：'],]
+    # check CN
+    if CN_ON(context):
+        index = 1
+    else:
+        index = 0
+    # tips
     font_id = 0
-    blf.size(font_id, 12, 200)
+    blf.size(font_id, 12, 100)
+    blf.position(font_id, 30,1020, 0)
+    blf.draw(font_id,text[0][index] )
+    blf.position(font_id, 30, 1000, 0)
+    blf.draw(font_id,text[1][index] )
+    # parameter
+    blf.size(font_id, 12, 175)
     blf.position(font_id, 30, 100, 0)
-    blf.draw(font_id, "Radius: " + str(round(obj.Rad,2)))
-    blf.position(font_id, 30, 140, 0)
-    blf.draw(font_id, "Number: " + str(obj.V_num))
+    blf.draw(font_id,text[2][index] + str(round(obj.Rad,2)))
+    blf.position(font_id, 30, 130, 0)
+    blf.draw(font_id,text[3][index] + str(obj.V_num))
 
 
 def clear_meshes():
@@ -123,13 +144,20 @@ def creat_RA(context):
     obj.RAobj = True
 
 
+def get_3dview_size(context):
+    for area in context.screen.areas:
+        if area.type=='VIEW_3D':
+            WIDTH=area.width
+            HEIGHT=area.height
+            return  WIDTH,HEIGHT
+
+
 class CreatRA(Operator):
     bl_idname = "object.add_ring_array"
     bl_label = "Add Ring Array"
-    # bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING'} # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
 
     number: bpy.props.IntProperty()
-    first_mouse_x: bpy.props.IntProperty()
     radius: bpy.props.FloatProperty()
 
     def update(self, context):
@@ -152,10 +180,15 @@ class CreatRA(Operator):
             self.execute(context)
         #radius
         elif event.type == 'MOUSEMOVE':
-            delta = self.first_mouse_x - event.mouse_region_x
-            multiplier = 0.02 if event.shift else 0.1
-            obj.Rad = self.radius - delta * multiplier
-
+            self.mouseDX = self.mouseDX - event.mouse_x
+            self.mouseDY = self.mouseDY - event.mouse_y
+            multiplier = 0.005 if event.shift else 0.02
+            # multi offset
+            offset = self.mouseDX
+            obj.Rad -=  offset * multiplier
+            # reset
+            self.mouseDX = event.mouse_x
+            self.mouseDY = event.mouse_y
         # confirem/cancel
         elif event.type == 'LEFTMOUSE':
             # clean draw
@@ -166,6 +199,13 @@ class CreatRA(Operator):
             obj.Rad = self.radius
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
+        elif event.type == 'A' and event.value == 'PRESS':
+            if event.ctrl:
+                bpy.ops.object.apply_ring_array(apply_mesh = True)
+            else:
+                bpy.ops.object.apply_ring_array(apply_mesh=False)
+            bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
 
@@ -175,7 +215,8 @@ class CreatRA(Operator):
     def invoke(self, context, event):
         obj = context.object
         self.number = obj.V_num
-        self.first_mouse_x = event.mouse_region_x
+        self.mouseDX = event.mouse_x
+        self.mouseDY = event.mouse_y
         self.radius = obj.Rad
         #draw
         if context.area.type == 'VIEW_3D':
@@ -193,7 +234,7 @@ class ApplyRA(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     post_name = StringProperty(name="Suffix", default='new_', )
-    apply_mesh = BoolProperty(name= 'Apply Instance Mesh ',default = True)
+    apply_mesh = BoolProperty(name= 'Apply Instance Mesh ',default = False)
 
     def execute(self, context):
         obj = context.object
@@ -319,11 +360,6 @@ def update_categort(self, context):
     except Exception as e:
         print("\n[{}]\n{}\n\nError:\n{}".format(__name__, message, e))
         pass
-
-
-def CN_ON(context):
-    if context.preferences.view.use_translate_interface == True:
-        return bpy.app.translations.locale == 'zh_CN'
 
 
 class Preferences(bpy.types.AddonPreferences):
