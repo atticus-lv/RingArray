@@ -9,18 +9,19 @@ bl_info = {
     "author": "Atticus",
     "description": "",
     "blender": (2, 83, 2),
-    "version": (0, 0, 3),
+    "version": (0, 0, 5),
     "location": "Side Menu -> Edit",
     "warning": "",
     "wiki_url": "",
     "category": "Object"
 }
 
-import bpy
-import bgl
-import blf
 
-from bpy.types import Object, Scene, Panel, Operator
+import bpy,bgl,blf
+import math,re
+
+from mathutils import Vector
+from bpy.types import Object, Scene, Panel, Operator,PropertyGroup
 from bpy.props import *
 
 
@@ -39,7 +40,7 @@ def CN_ON(context):
 
 def draw_callback_px(obj, context):
     text = [["Wheel Scroll OR Move mouse (shift to slow speed)","滑动滚轮或者移动鼠标（按shift微调）"],
-            ["'A' to apply instance, Ctrl 'A' to apply mesh","按 A 应用实例，Ctrl A 应用网格"],
+            ["'A' to switch instance/copy","按 A 切换实例/复制"],
             [ "Radius: ",'半径：'],
             ["Number: ",'数量：'],
             ["'R' to copy rotate",'按 R 复制旋转']]
@@ -61,9 +62,14 @@ def draw_callback_px(obj, context):
     # parameter
     blf.size(font_id, 12, 175)
     blf.position(font_id, 30, 100, 0)
-    blf.draw(font_id,text[2][index] + str(round(obj.Rad,2)))
+    blf.draw(font_id,text[2][index] + str(round(obj.RA.rad,2)))
     blf.position(font_id, 30, 130, 0)
-    blf.draw(font_id,text[3][index] + str(obj.V_num))
+    blf.draw(font_id,text[3][index] + str(obj.RA.num))
+
+
+def fix(obj):
+    obj.RA.rad =2
+    obj.RA.num = 8
 
 
 def clear_meshes():
@@ -71,13 +77,24 @@ def clear_meshes():
         if block.users == 0:
             bpy.data.meshes.remove(block)
 
+def make_mesh(source):
+    new = source.copy()
+    new.name = source.name
+    new.data = new.data.copy()
+    bpy.context.collection.objects.link(new)
+    bpy.data.objects.remove(bpy.data.objects[source.name], do_unlink=True)
+    return new
 
-def remove_objects(context):
-    for o in context.scene.objects:
-        if o.name.startswith("RA_"):
-            objs = bpy.data.objects
-            objs.remove(objs[o.name], do_unlink=True)
 
+def remove_objects(obj):
+    for o in bpy.context.scene.objects:
+        if o.name.startswith(f"RA_") or o.name.startswith(f"ra_") :
+            ret = re.match(".*[0-9]\.*[0-9]\.*[0-9]$", o.name)
+            if ret:
+                try:bpy.data.objects.remove(o, do_unlink=True)
+                except:pass
+            try:bpy.data.objects.remove(o, do_unlink=True)
+            except:pass
 
 def get_children(myObject):
     children = []
@@ -88,103 +105,124 @@ def get_children(myObject):
     return children
 
 
-def get_center_obj(context,obj):
+def get_center_obj(obj):
     try:
-        CTobject = context.scene.objects[obj.Ct]
+        CTobject = bpy.context.scene.objects[obj.RA.center]
+        return CTobject
     except Exception:
-        CTobject = ''
-    return CTobject
+        return None
 
 
 def add_circle(context,obj):
     bpy.ops.mesh.primitive_circle_add(
-        vertices=obj.V_num, radius=obj.Rad, enter_editmode=False, align='WORLD')
-    Cieclename = context.object.name
-    circle = bpy.data.objects[Cieclename]
+        vertices=obj.RA.num, radius=obj.RA.rad, enter_editmode=False, align='WORLD')
+    Circlename = context.object.name
+    circle = bpy.data.objects[Circlename]
     circle.name = 'RA_' + f'{obj.name}'
     return circle
 
 
-def set_instance(circle,instance):
-    circle.instance_type = 'VERTS'
-    circle.show_instancer_for_viewport = True
-    circle.show_instancer_for_render = True
-    circle.use_instance_vertices_rotation = instance.Copy_rotate
-    return circle
+def add_cage(obj):
+    if obj.type == "MESH":
+        mx = obj.matrix_world
+        minz = min((mx @ v.co)[2] for v in obj.data.vertices)
+        maxz = max((mx @ v.co)[2] for v in obj.data.vertices)
+        d = maxz - minz
+    else:
+        d = 0
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=obj.RA.rad, depth =d ,enter_editmode=False, align='WORLD')
+    cage = bpy.context.object
+    cage.display_type = 'BOUNDS'
+    cage.name = 'RA_' + f'{obj.name}'
+    return cage
 
 
-def make_mesh(source,self):
-    new = source.copy()
-    new.name =self.post_name + source.name
-    new.data = new.data.copy()
-    bpy.context.collection.objects.link(new)
-    bpy.data.objects.remove(bpy.data.objects[source.name], do_unlink=True)
+def use_circle(obj,parent):
+    ic_angle = math.pi * 2 * obj.RA.angle / obj.RA.num
+    # reset active
+    for i in range(obj.RA.num):
+        loc_x = obj.RA.rad * math.sin(i * ic_angle)
+        loc_y = obj.RA.rad * math.cos(i * ic_angle)
+        #copy or instance
+
+        new = obj.copy()
+        bpy.context.collection.objects.link(new)
+
+        if obj.RA.use_instance == "INSTANCE":
+            new.data = obj.data
+
+        # loc and rotate
+        new.name = "ra_" + obj.name
+        new.location[0] = loc_x
+        new.location[1] = loc_y
+
+        new.RA.enable = False
+        new.hide_select = True
+
+        new.parent = parent
+
+        if obj.RA.apply_rotate:
+            new.rotation_euler[2] = ic_angle * -i
 
 
-def creat_RA(context):
+def CreatArray(context):
     obj = context.object
-    bpy.ops.object.select_all(action='DESELECT')
+    obj.RA.enable = True
 
-    remove_objects(context)
+    # clean data
+    remove_objects(obj)
     clear_meshes()
 
-    centerobj = get_center_obj(context,obj)
+    cage = add_cage(obj)
 
-    circle = add_circle(context,obj)
+    use_circle(obj,cage)
 
-    if centerobj != '':
-        circle.location = centerobj.location
-        # print(circle.location)
-        obj.parent = circle
-        obj.location = (0,0,0)
+    center = get_center_obj(obj)
+
+    if center:
+        cage.location = center.location
     else:
-        circle.location = obj.location
-        obj.select_set(True)
-        bpy.ops.object.parent_set(type='OBJECT', keep_transform=False)
+        cage.location = obj.location
 
-    set_instance(circle,obj)
-    # restore active
+    # reset active
     bpy.ops.object.select_all(action='DESELECT')
-    context.view_layer.objects.active = obj
+    bpy.context.view_layer.objects.active = obj
+    cage.select_set(True)
     obj.select_set(True)
-    # set RA
-    obj.RAobj = True
+    obj.hide_select = False
 
 
-def get_3dview_size(context):
-    for area in context.screen.areas:
-        if area.type=='VIEW_3D':
-            WIDTH=area.width
-            HEIGHT=area.height
-            return  WIDTH,HEIGHT
-
-
-class CreatRA(Operator):
+class OBJECT_OT_CreatRA(Operator):
     bl_idname = "object.add_ring_array"
     bl_label = "Add Ring Array"
     bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING', 'UNDO'} # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
 
-    number: bpy.props.IntProperty()
-    radius: bpy.props.FloatProperty()
+    number: IntProperty()
+    radius: FloatProperty()
+    angle : FloatProperty()
+
+    @classmethod
+    def poll(self,context):
+        return context.object is not None
 
     def update(self, context):
         obj = context.object
-        if obj.RAobj:
-            creat_RA(context)
+        if obj.RA.enable:
+            CreatArray(context)
 
     def modal(self, context, event):
         obj = context.object
-        creat_RA(context)
+        CreatArray(context)
         # allow navigation
         if event.type in {'MIDDLEMOUSE',}:
             return {'PASS_THROUGH'}
         # number
         elif event.type == "WHEELUPMOUSE":
-            obj.V_num += 1
-            creat_RA(context)
+            obj.RA.num += 1
+            CreatArray(context)
         elif event.type == "WHEELDOWNMOUSE":
-            obj.V_num -= 1
-            creat_RA(context)
+            obj.RA.num -= 1
+            CreatArray(context)
         #radius
         elif event.type == 'MOUSEMOVE':
             self.mouseDX = self.mouseDX - event.mouse_x
@@ -192,7 +230,7 @@ class CreatRA(Operator):
             multiplier = 0.005 if event.shift else 0.02
             # multi offset
             offset = self.mouseDX
-            obj.Rad -=  offset * multiplier
+            obj.RA.rad -=  offset * multiplier
             # reset
             self.mouseDX = event.mouse_x
             self.mouseDY = event.mouse_y
@@ -203,32 +241,28 @@ class CreatRA(Operator):
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            obj.V_num = self.number
-            obj.Rad = self.radius
-            bpy.ops.object.del_ring_array() #delete
+            obj.RA.num = self.number
+            obj.RA.rad = self.radius
+            obj.RA.angle = self.angle
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
 
         elif event.type == 'A' and event.value == 'PRESS':
-            if event.ctrl:
-                bpy.ops.object.apply_ring_array(apply_mesh = True)
-            else:
-                bpy.ops.object.apply_ring_array(apply_mesh=False)
-            bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-            return {'FINISHED'}
+            obj.RA.use_instance = "INSTANCE" if obj.RA.use_instance == "COPY" else "COPY"
+
 
         elif event.type == 'R' and event.value == 'PRESS':
-            if obj.Copy_rotate :
-                obj.Copy_rotate = False
-            else:
-                obj.Copy_rotate = True
+            obj.RA.apply_rotate = False if obj.RA.apply_rotate == True else True
+
+
 
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
         obj = context.object
-        self.number = obj.V_num
-        self.radius = obj.Rad
+        self.number = obj.RA.num
+        self.radius = obj.RA.rad
+        self.angle = obj.RA.angle
         self.mouseDX = event.mouse_x
         self.mouseDY = event.mouse_y
         #draw
@@ -240,119 +274,102 @@ class CreatRA(Operator):
         return {'RUNNING_MODAL'}
 
 
-class ApplyRA(Operator):
+class OBJECT_OT_ApplyRA(Operator):
     bl_idname = "object.apply_ring_array"
-    bl_label = "Apply"
+    bl_label = "Rename"
     bl_options = {'REGISTER', 'UNDO'}
 
-    post_name: StringProperty(name="Suffix", default='new_', )
-    apply_mesh: BoolProperty(name= 'Apply Instance Mesh ',default = False)
+    newname:StringProperty(
+        name="Rename",
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row()
+        row.scale_x = 0.5
+        row.prop(self, 'newname', text='')
 
     def execute(self, context):
         obj = context.object
-        obj_name = obj.name
-        obj.RAobj = False
-
-        for o in context.scene.objects:
-            if o.name.startswith("RA_") and o.name.endswith("_" + obj.name):
-                # apply instance
-                context.view_layer.objects.active = o
-                o.select_set(True)
-                bpy.ops.object.duplicates_make_real(use_base_parent=True)
-
-                for child in get_children(o):
-                    if self.apply_mesh:
-                        # apply mesh
-                        if child.name.startswith(obj.name) and child.name.endswith(obj.name):
-                            pass
-                        else:
-                            make_mesh(child,self)
-                        # new = bpy.data.objects[self.post_name + obj_name]
-                    else:
-                        if child.name.startswith(obj.name) and child.name.endswith(obj.name):
-                            pass
-                        else:
-                            child.name = self.post_name + obj_name
-
-
-        # restore
-        obj.name = obj_name
-        obj.Copy_rotate = True
-        obj.Ct = ''
-        obj.V_num = 8
-        obj.Rad = 2
-        obj.Copy_apply = False
-        #clear parent
-        obj.parent = None
-
+        for o in bpy.data.objects:
+            if o.name.startswith(f"RA_{obj.name}"):
+                o.name = self.newname
+            elif o.name.startswith(f"ra_{obj.name}"):
+                o.name = self.newname + obj.name
+            o.hide_select = False
+        obj.RA.enable = False
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        obj = context.object
-        self.post_name = 'new_'
-        self.apply_mesh = obj.Copy_apply
-        return self.execute(context)
+        self.newname = "Give me a name"
+        return context.window_manager.invoke_props_popup(self, event)
 
 
-class DeleteRA(Operator):
+class OBJECT_OT_DeleteRA(Operator):
     bl_idname = "object.del_ring_array"
     bl_label = "Delete"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         obj = context.object
-        obj.RAobj = False
-        for o in context.visible_objects:
-            if o.name.startswith("RA_") and o.name.endswith("_" + obj.name):
-                bpy.data.objects.remove(o)
+        obj.RA.enable = False
+        try:
+            for o in bpy.data.objects:
+                if o.name.startswith(f"RA_{obj.name}"):
+                    children = get_children(o)
+                    for child in children:
+                        bpy.data.objects.remove(child)
 
+                    bpy.data.objects.remove(o)
+        except:
+            pass
         return {'FINISHED'}
 
 
-class RA_Panel(Panel):
+class RA_PT_Panel(Panel):
     bl_label = "Ring Array"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Edit"
 
     def draw(self, context):
-        layout = self.layout
+        layout = self.layout.box()
         obj = context.object
+
         if context.preferences.addons[__name__].preferences.debug:
             layout.operator('script.reload')
+
         if not obj:
             layout.label(text='Select An Object')
         else:
             col = layout.column()
-            col.scale_y = 1.5
-            row = col.row(align=False)
-            row.prop_search(obj, "Ct", context.scene, "objects")
-            row.scale_x = 1.25
-            row.prop(obj, "Copy_rotate", text='', icon="ORIENTATION_GIMBAL")
-            if context.object.RAobj:
-                row = col.row(align=True)
-                row.prop(obj, "V_num")
-                row.prop(obj, "Rad")
+            col.scale_y = 1.15
 
-                col.operator('object.add_ring_array',text='Adjust RA')
+            if context.object.RA.enable  :
+                row = col.row(align=False)
+                row.prop(obj.RA, 'use_instance', expand=True)
 
+                col1 = layout.box().column()
+                row = col1.row(align=False)
+                row.prop_search(obj.RA, "center", context.scene, "objects", text="")
+                row.scale_x = 1.25
+                row.prop(obj.RA, "apply_rotate", text='', icon="ORIENTATION_GIMBAL")
+
+                col1.prop(obj.RA, "num",text = "Count")
+                col1.prop(obj.RA, "rad",text = "Radius")
+                col1.prop(obj.RA, "angle",text = "Radians",slider = True)
+
+                col = layout.column()
+                col.scale_y = 1.15
                 row = col.row(align=True)
-                row.operator('object.apply_ring_array')
-                sub = row.row(align=True)
-                sub.prop(obj, 'Copy_apply', text='', icon='MESH_DATA')
-                row.separator()
+                row.operator('object.apply_ring_array',text = 'Apply')
                 row.operator('object.del_ring_array')
+                col.operator('object.add_ring_array', text='Adjust RA')
 
+            elif context.object.name.startswith("RA_") or context.object.name.startswith("ra_"):
+                col.label(text='Select a right object')
             else:
-                if len(context.object.data.polygons) == 0:
-                    try:
-                        col.label(text='active object have no faces')
-                    except AttributeError:
-                        pass
-                else:
-                    row = col.row(align=True)
-                    row.operator("object.add_ring_array")
-
+                col.operator('object.add_ring_array', text='Creat RA')
 
 #
 # ___  ____ ____ ____
@@ -362,7 +379,7 @@ class RA_Panel(Panel):
 #
 
 panels = (
-    RA_Panel,
+    RA_PT_Panel,
 )
 
 def update_categort(self, context):
@@ -413,60 +430,64 @@ class Preferences(bpy.types.AddonPreferences):
 
 
 #
-# ___  ____ ____ ___  ____
-# |__] |__/ |  | |__] [__
-# |    |  \ |__| |    ___]
-#
-#
-
-def props():
-    Object.RAobj = BoolProperty(
-        name="Use RA", default=False,
-    )
-
-    Object.Copy_rotate = BoolProperty(
-        name="Rotate", default=True,
-        update=CreatRA.update
-    )
-
-    Object.Ct = StringProperty(
-        name="Center", default='',
-        update=CreatRA.update
-    )
-
-    Object.V_num = IntProperty(
-        name='Count', default=8, min=3, soft_max=24,
-        update=CreatRA.update
-    )
-
-    Object.Rad = FloatProperty(
-        name='Radius', default=2,
-        min=0, soft_max=12,
-        update=CreatRA.update,
-        precision = 2,
-    )
-
-    Object.Copy_apply = BoolProperty(
-        name="Mesh", default=False
-    )
-
-
-#
 # ____ ____ ____ _ ____ ___ ____ ____
 # |__/ |___ | __ | [__   |  |___ |__/
 # |  \ |___ |__] | ___]  |  |___ |  \
 #
 #
 
+class RA_Props(bpy.types.PropertyGroup):
+    enable: BoolProperty(
+        name="Use RA", default=False,
+    )
+
+    apply_rotate:BoolProperty(
+        name="Rotate", default=True,
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    center : StringProperty(
+        name="Center", default='',
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    num :IntProperty(
+        name='Count', default=8, min=2, soft_max=24,
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    rad : FloatProperty(
+        name='Radius', default=2,
+        min=0, soft_max=12,
+        update=OBJECT_OT_CreatRA.update,
+        precision=2,
+    )
+
+    angle: FloatProperty(
+        name='Angle', default=1,
+        min = 0 ,max = 1,
+        update=OBJECT_OT_CreatRA.update,
+    )
+
+    use_instance: EnumProperty(
+        items=[('INSTANCE', 'Instancing', ''), ('COPY', 'Copy', '')],
+        default='INSTANCE',
+        update = OBJECT_OT_CreatRA.update
+    )
+
+
 classes = (
-    RA_Panel, CreatRA, DeleteRA, ApplyRA, Preferences,
+    RA_PT_Panel, OBJECT_OT_CreatRA, OBJECT_OT_ApplyRA, OBJECT_OT_DeleteRA, Preferences, RA_Props
 )
 
 
 def register():
-    props()
+
     for cls in classes:
         bpy.utils.register_class(cls)
+
+    bpy.types.Object.RA = bpy.props.PointerProperty(type=RA_Props)
+
 
 
 def unregister():
