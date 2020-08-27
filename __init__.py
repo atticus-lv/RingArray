@@ -7,7 +7,7 @@
 bl_info = {
     "name": "Ring Array",
     "author": "Atticus",
-    "description": "",
+    "description": "允许阵列任意物体的插件",
     "blender": (2, 83, 2),
     "version": (0, 0, 5),
     "location": "Side Menu -> Edit",
@@ -24,10 +24,10 @@ from mathutils import Vector
 from bpy.types import Object, Scene, Panel, Operator, PropertyGroup
 from bpy.props import *
 
-from .Props import *
 from .Operators import *
 from .Functions import *
 from .Panel import *
+
 
 panels = (
     RA_PT_Panel,
@@ -58,6 +58,7 @@ class Preferences(bpy.types.AddonPreferences):
         default="Edit",
         update=update_categort
         )
+
     debug:BoolProperty(
         name = 'Debug',default = False
         )
@@ -66,10 +67,7 @@ class Preferences(bpy.types.AddonPreferences):
         layout = self.layout
         row = layout.row(align=True)
         row.separator()
-        if CN_ON(context):
-            row.label(text='Tips: 如果没有中心物体, 则以自己为中心')
-        else:
-            row.label(text="Tips: If no center object, RingArray active object itself")
+        row.label(text='Tips: 如果没有中心物体, 则以自己为中心'if CN_ON(context) else "Tips: If no center object, RingArray active object itself")
         row.separator()
         row = layout.row(align=True)
 

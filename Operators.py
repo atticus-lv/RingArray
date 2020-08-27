@@ -15,6 +15,7 @@ class OBJECT_OT_CreatRA(Operator):
     number: IntProperty()
     radius: FloatProperty()
     angle : FloatProperty()
+    enable: BoolProperty()
 
     @classmethod
     def poll(self,context):
@@ -56,6 +57,8 @@ class OBJECT_OT_CreatRA(Operator):
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
+            if self.enable == False:
+                bpy.ops.object.del_ring_array()
             obj.RA.num = self.number
             obj.RA.rad = self.radius
             obj.RA.angle = self.angle
@@ -72,6 +75,7 @@ class OBJECT_OT_CreatRA(Operator):
 
     def invoke(self, context, event):
         obj = context.object
+        self.enable = obj.RA.enable
         self.number = obj.RA.num
         self.radius = obj.RA.rad
         self.angle = obj.RA.angle
@@ -136,3 +140,43 @@ class OBJECT_OT_DeleteRA(Operator):
         except:pass
 
         return {'FINISHED'}
+
+
+class RA_Props(PropertyGroup):
+    enable: BoolProperty(
+        name="Use RA", default=False,
+    )
+
+    apply_rotate:BoolProperty(
+        name="Rotate", default=True,
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    center : StringProperty(
+        name="Center", default='',
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    num :IntProperty(
+        name='Count', default=8, min=2, soft_max=24,
+        update=OBJECT_OT_CreatRA.update
+    )
+
+    rad : FloatProperty(
+        name='Radius', default=2,
+        min=0, soft_max=12,
+        update=OBJECT_OT_CreatRA.update,
+        precision=2,
+    )
+
+    angle: FloatProperty(
+        name='Angle', default=1,
+        min = 0 ,max = 1,
+        update=OBJECT_OT_CreatRA.update,
+    )
+
+    use_instance: EnumProperty(
+        items=[('INSTANCE', 'Instancing', ''), ('COPY', 'Copy', '')],
+        default='INSTANCE',
+        update = OBJECT_OT_CreatRA.update
+    )

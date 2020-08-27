@@ -1,4 +1,4 @@
-import bpy
+import bpy,blf,bgl
 import math,re
 
 from mathutils import Vector
@@ -133,10 +133,7 @@ def CreatArray(context):
 
     center = get_center_obj(obj)
 
-    if center:
-        cage.location = center.location
-    else:
-        cage.location = obj.location
+    cage.location = center.location if center else obj.location
 
     # reset active
     bpy.ops.object.select_all(action='DESELECT')
