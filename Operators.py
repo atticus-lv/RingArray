@@ -60,7 +60,7 @@ class OBJECT_OT_CreatRA(Operator):
             if event.ctrl:
                 multiplier = 0.0005 if event.shift else 0.002
                 obj.RA.offset_angle -= offsetx * multiplier
-            elif event.shift:
+            elif event.alt:
                 multiplier = 0.0005 if event.shift else 0.002
                 obj.RA.offset_rad -=  offsetx * multiplier
 

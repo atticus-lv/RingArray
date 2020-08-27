@@ -16,29 +16,35 @@ def draw_callback_px(obj, context):
             ["'A' to switch instance/copy,'R' to copy rotate","按 A 切换实例/复制,按 R 复制旋转"],
             [ "Radius: ",'半径：'],
             ["Number: ",'数量：'],
-            ["ctrl wheel scroll to add layer，ctrl move mouse to offset x,shift move mouse to offset y",'ctrl 滚轮增加层，ctrl 移动鼠标偏移x,shift 移动鼠标偏移y']]
+            ["ctrl wheel scroll to add layer，ctrl move mouse to offset x,alt move mouse to offset y",'ctrl 滚轮增加层，ctrl 移动鼠标偏移x,shift 移动鼠标偏移y']]
     # check CN
     if CN_ON(context):
         index = 1
     else:
         index = 0
+
+    if context.space_data.show_region_toolbar == False:
+        x = 30
+    else:
+        x = 100
+
     # tips
     font_id = 0
     blf.size(font_id, 12, 100)
-    blf.position(font_id, 30,1020, 0)
+    blf.position(font_id, x,1020, 0)
     blf.draw(font_id,text[0][index] )
-    blf.position(font_id, 30, 1000, 0)
+    blf.position(font_id, x, 1000, 0)
     blf.draw(font_id, text[4][index])
-    blf.position(font_id, 30, 980, 0)
+    blf.position(font_id, x, 980, 0)
     blf.draw(font_id, text[1][index])
 
     # parameter
     blf.size(font_id, 12, 175)
-    blf.position(font_id, 30, 100, 0)
+    blf.position(font_id, x, 100, 0)
     blf.draw(font_id,text[2][index] + str(round(obj.RA.rad,2)))
-    blf.position(font_id, 30, 130, 0)
+    blf.position(font_id, x, 130, 0)
     blf.draw(font_id,text[3][index] + str(obj.RA.num))
-    blf.position(font_id, 30, 160, 0)
+    blf.position(font_id, x, 160, 0)
     blf.draw(font_id, str(obj.RA.use_instance))
 
 
@@ -118,7 +124,7 @@ def add_cage(obj):
     if rad_offset < 0:
         rad_total = rad*layer
     else:
-        rad_total = rad * (layer) - rad_offset * (layer) * rad
+        rad_total = rad * (layer) - rad_offset * (layer-1) * rad
 
     bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=rad_total, depth =d ,enter_editmode=False, align='WORLD')
     cage = bpy.context.object
