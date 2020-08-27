@@ -33,9 +33,18 @@ class RA_PT_Panel(Panel):
                 row.scale_x = 1.25
                 row.prop(obj.RA, "apply_rotate", text='', icon="ORIENTATION_GIMBAL")
 
-                col1.prop(obj.RA, "num",text = "Count")
-                col1.prop(obj.RA, "rad",text = "Radius")
-                col1.prop(obj.RA, "angle",text = "Radians",slider = True)
+                row = col1.row(align=True)
+                row.prop(obj.RA, "num",text = "Count")
+                row.prop(obj.RA, "layer", text="Layer")
+
+                row = col1.row(align=True)
+                row.prop(obj.RA, "rad",text = "Radius", slider=True)
+                row.prop(obj.RA, "angle", text="Radians", slider=True)
+
+
+                row = col1.row(align=True)
+                row.prop(obj.RA, "offset_rad", text="Offset Y", slider=True)
+                row.prop(obj.RA, "offset_angle", text="Offset X", slider=True)
 
                 col = layout.column()
                 col.scale_y = 1.15

@@ -16,55 +16,79 @@ class OBJECT_OT_CreatRA(Operator):
     radius: FloatProperty()
     angle : FloatProperty()
     enable: BoolProperty()
+    offset_angle:FloatProperty()
+    offset_rad:FloatProperty()
+
 
     @classmethod
     def poll(self,context):
         return context.object is not None
 
+
     def update(self, context):
-        obj = context.object
+        obj = bpy.context.object
         if obj.RA.enable:
             CreatArray(context)
 
     def modal(self, context, event):
-        obj = context.object
+        obj = bpy.context.object
         CreatArray(context)
         # allow navigation
         if event.type in {'MIDDLEMOUSE',}:
             return {'PASS_THROUGH'}
         # number
         elif event.type == "WHEELUPMOUSE":
-            obj.RA.num += 1
-            CreatArray(context)
+            if not event.ctrl:
+                obj.RA.num += 1
+            else:
+                obj.RA.layer += 1
         elif event.type == "WHEELDOWNMOUSE":
-            obj.RA.num -= 1
-            CreatArray(context)
+            if not event.ctrl:
+                obj.RA.num -= 1
+            else:
+                obj.RA.layer -= 1
+
         #radius
         elif event.type == 'MOUSEMOVE':
             self.mouseDX = self.mouseDX - event.mouse_x
             self.mouseDY = self.mouseDY - event.mouse_y
-            multiplier = 0.005 if event.shift else 0.02
+
             # multi offset
-            offset = self.mouseDX
-            obj.RA.rad -=  offset * multiplier
+            offsetx = self.mouseDX
+            offsety = self.mouseDY
+
+            if event.ctrl:
+                multiplier = 0.0005 if event.shift else 0.002
+                obj.RA.offset_angle -= offsetx * multiplier
+            elif event.shift:
+                multiplier = 0.0005 if event.shift else 0.002
+                obj.RA.offset_rad -=  offsetx * multiplier
+
+            else:
+                multiplier = 0.005 if event.shift else 0.02
+                obj.RA.rad -= offsetx * multiplier
+
             # reset
             self.mouseDX = event.mouse_x
             self.mouseDY = event.mouse_y
+
+
         # confirm / cancel
         elif event.type == 'LEFTMOUSE':
             # clean draw
+            for ob in bpy.data.objects:
+                if ob.name.startswith(f"RA_{context.object.name}"):
+                    ob.select_set(False)
+
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            if self.enable == False:
-                bpy.ops.object.del_ring_array()
-            obj.RA.num = self.number
-            obj.RA.rad = self.radius
-            obj.RA.angle = self.angle
+            set_init(self,context)
+
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
-
+        # sitch
         elif event.type == 'A' and event.value == 'PRESS':
             obj.RA.use_instance = "INSTANCE" if obj.RA.use_instance == "COPY" else "COPY"
 
@@ -74,11 +98,9 @@ class OBJECT_OT_CreatRA(Operator):
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
-        obj = context.object
-        self.enable = obj.RA.enable
-        self.number = obj.RA.num
-        self.radius = obj.RA.rad
-        self.angle = obj.RA.angle
+        obj = bpy.context.object
+        init(self,context)
+        # mouse
         self.mouseDX = event.mouse_x
         self.mouseDY = event.mouse_y
         #draw
@@ -112,8 +134,8 @@ class OBJECT_OT_ApplyRA(Operator):
                 o.name = self.newname
                 children = get_children(o)
                 for child in children:
-                    child.name ="sub_"+ self.newname
-                    print(child)
+                    child.name =child.name[3+len(obj.name):]
+                    child.name =  self.newname + "_"+ child.name
             o.hide_select = False
         obj.RA.enable = False
         return {'FINISHED'}
@@ -164,6 +186,11 @@ class RA_Props(PropertyGroup):
         update=OBJECT_OT_CreatRA.update
     )
 
+    layer: IntProperty(
+        name='Layer', default=1, min=1, soft_max=10,
+        update=OBJECT_OT_CreatRA.update
+    )
+
     rad : FloatProperty(
         name='Radius', default=2,
         min=0, soft_max=12,
@@ -171,9 +198,21 @@ class RA_Props(PropertyGroup):
         precision=2,
     )
 
+    offset_rad: FloatProperty(
+        name='Offset', default=0,
+        min=-1, max=1,
+        update=OBJECT_OT_CreatRA.update,
+    )
+
     angle: FloatProperty(
         name='Angle', default=1,
         min = 0 ,max = 1,
+        update=OBJECT_OT_CreatRA.update,
+    )
+
+    offset_angle: FloatProperty(
+        name='Offset', default=0,
+        min=0, max=1,
         update=OBJECT_OT_CreatRA.update,
     )
 

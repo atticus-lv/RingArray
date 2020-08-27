@@ -9,7 +9,7 @@ bl_info = {
     "author": "Atticus",
     "description": "允许阵列任意物体的插件",
     "blender": (2, 83, 2),
-    "version": (0, 0, 5),
+    "version": (0, 0, 6),
     "location": "Side Menu -> Edit",
     "warning": "",
     "wiki_url": "https://github.com/atticus-lv/RingArray",

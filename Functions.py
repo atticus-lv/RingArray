@@ -12,11 +12,11 @@ def CN_ON(context):
 
 
 def draw_callback_px(obj, context):
-    text = [["Wheel Scroll OR Move mouse (shift to slow speed)","滑动滚轮或者移动鼠标（按shift微调）"],
-            ["'A' to switch instance/copy","按 A 切换实例/复制"],
+    text = [["Wheel scroll to add count, Move mouse to add rad (shift to slow speed)","滑动滚轮增加数量或，移动鼠标增加半径（按shift微调）"],
+            ["'A' to switch instance/copy,'R' to copy rotate","按 A 切换实例/复制,按 R 复制旋转"],
             [ "Radius: ",'半径：'],
             ["Number: ",'数量：'],
-            ["'R' to copy rotate",'按 R 复制旋转']]
+            ["ctrl wheel scroll to add layer，ctrl move mouse to offset x,shift move mouse to offset y",'ctrl 滚轮增加层，ctrl 移动鼠标偏移x,shift 移动鼠标偏移y']]
     # check CN
     if CN_ON(context):
         index = 1
@@ -40,6 +40,32 @@ def draw_callback_px(obj, context):
     blf.draw(font_id,text[3][index] + str(obj.RA.num))
     blf.position(font_id, 30, 160, 0)
     blf.draw(font_id, str(obj.RA.use_instance))
+
+
+def set_init(self,context):
+    obj = context.object
+    if self.enable == False:
+        bpy.ops.object.del_ring_array()
+    obj.RA.num = self.number
+    obj.RA.rad = self.radius
+    obj.RA.angle = self.angle
+    obj.RA.layer = self.layer
+    obj.RA.offset_angle = self.offset_angle
+    obj.RA.offset_rad = self.offset_rad
+
+
+def init(self,context):
+    obj = context.object
+    self.enable = obj.RA.enable
+    self.number = obj.RA.num
+    self.radius = obj.RA.rad
+    self.angle = obj.RA.angle
+    self.layer = obj.RA.layer
+    self.offset_angle = obj.RA.offset_angle
+    self.offset_rad = obj.RA.offset_rad
+
+
+
 
 
 def clear_meshes():
@@ -84,7 +110,17 @@ def add_cage(obj):
         d = maxz - minz
     else:
         d = 0
-    bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=obj.RA.rad, depth =d ,enter_editmode=False, align='WORLD')
+
+    layer = obj.RA.layer
+    rad = obj.RA.rad
+    rad_offset = obj.RA.offset_rad
+
+    if rad_offset < 0:
+        rad_total = rad*layer
+    else:
+        rad_total = rad * (layer) - rad_offset * (layer) * rad
+
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=rad_total, depth =d ,enter_editmode=False, align='WORLD')
     cage = bpy.context.object
     cage.display_type = 'BOUNDS'
     cage.name = 'RA_' + f'{obj.name}'
@@ -93,30 +129,45 @@ def add_cage(obj):
 
 def use_circle(obj,parent):
     ic_angle = math.pi * 2 * obj.RA.angle / obj.RA.num
+
+    layer = obj.RA.layer
+    rad = obj.RA.rad
+    rad_offset = obj.RA.offset_rad
+    offset = obj.RA.offset_angle
+
     # reset active
-    for i in range(obj.RA.num):
-        loc_x = obj.RA.rad * math.sin(i * ic_angle)
-        loc_y = obj.RA.rad * math.cos(i * ic_angle)
-        #copy or instance
-        new = obj.copy()
-        if obj.RA.use_instance == "INSTANCE":
-            new.data = obj.data
+    for iter in range(obj.RA.layer):
+
+        if rad_offset <0:
+            rad_total = rad * (layer-iter) - rad_offset*(iter)*rad
+            offset_total = offset * (layer - iter)
         else:
-            new.data = obj.data.copy()
-            
-        bpy.context.collection.objects.link(new)
-        # loc and rotate
-        new.name = "ra_" + obj.name
-        new.location[0] = loc_x
-        new.location[1] = loc_y
+            rad_total = - rad * (iter+1) + rad_offset * (iter) * rad
+            offset_total = offset * (iter+1)
 
-        new.RA.enable = False
-        new.hide_select = True
+        for i in range(obj.RA.num):
+            loc_x = rad_total * math.sin((i+offset_total) * ic_angle)
+            loc_y = rad_total * math.cos((i+offset_total) * ic_angle)
+            #copy or instance
+            new = obj.copy()
+            if obj.RA.use_instance == "INSTANCE":
+                new.data = obj.data
+            else:
+                new.data = obj.data.copy()
 
-        new.parent = parent
+            bpy.context.collection.objects.link(new)
+            # loc and rotate
+            new.name = "ra_"+ obj.name +f"_layer{iter}"+ f"_ob{i}"
+            new.location[0] = loc_x
+            new.location[1] = loc_y
 
-        if obj.RA.apply_rotate:
-            new.rotation_euler[2] = ic_angle * -i
+            new.RA.enable = False
+            new.hide_select = True
+
+            new.parent = parent
+
+            if obj.RA.apply_rotate:
+                new.rotation_euler[2] = ic_angle * -i
 
 
 def CreatArray(context):
