@@ -110,8 +110,10 @@ class OBJECT_OT_ApplyRA(Operator):
         for o in bpy.data.objects:
             if o.name.startswith(f"RA_{obj.name}"):
                 o.name = self.newname
-            elif o.name.startswith(f"ra_{obj.name}"):
-                o.name ="sub_"+ self.newname
+                children = get_children(o)
+                for child in children:
+                    child.name ="sub_"+ self.newname
+                    print(child)
             o.hide_select = False
         obj.RA.enable = False
         return {'FINISHED'}

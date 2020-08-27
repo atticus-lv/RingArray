@@ -98,13 +98,13 @@ def use_circle(obj,parent):
         loc_x = obj.RA.rad * math.sin(i * ic_angle)
         loc_y = obj.RA.rad * math.cos(i * ic_angle)
         #copy or instance
-
         new = obj.copy()
-        bpy.context.collection.objects.link(new)
-
         if obj.RA.use_instance == "INSTANCE":
             new.data = obj.data
-
+        else:
+            new.data = obj.data.copy()
+            
+        bpy.context.collection.objects.link(new)
         # loc and rotate
         new.name = "ra_" + obj.name
         new.location[0] = loc_x
@@ -133,7 +133,7 @@ def CreatArray(context):
 
     center = get_center_obj(obj)
 
-    cage.location = center.location if center else obj.location
+    cage.location = center.location if center else obj.matrix_world.translation
 
     # reset active
     bpy.ops.object.select_all(action='DESELECT')

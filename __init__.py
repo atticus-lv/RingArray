@@ -12,7 +12,7 @@ bl_info = {
     "version": (0, 0, 5),
     "location": "Side Menu -> Edit",
     "warning": "",
-    "wiki_url": "",
+    "wiki_url": "https://github.com/atticus-lv/RingArray",
     "category": "Object"
 }
 
