@@ -206,7 +206,7 @@ class RA_Props(PropertyGroup):
 
     angle: FloatProperty(
         name='Angle', default=1,
-        min = 0 ,max = 1,
+        min = -1 ,max = 1,
         update=OBJECT_OT_CreatRA.update,
     )
 

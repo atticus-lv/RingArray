@@ -82,11 +82,7 @@ def clear_meshes():
 
 def remove_objects(obj):
     for o in bpy.context.scene.objects:
-        if o.name.startswith(f"RA_") or o.name.startswith(f"ra_") :
-            ret = re.match(".*[0-9]\.*[0-9]\.*[0-9]$", o.name)
-            if ret:
-                try:bpy.data.objects.remove(o, do_unlink=True)
-                except:pass
+        if o.name.startswith(f"RA_{obj.name}") or o.name.startswith(f"ra_{obj.name}") :
             try:bpy.data.objects.remove(o, do_unlink=True)
             except:pass
 
@@ -143,17 +139,20 @@ def use_circle(obj,parent):
 
     # reset active
     for iter in range(obj.RA.layer):
+        offset_total = - offset * (layer - iter + 1)
 
         if rad_offset <0:
             rad_total = rad * (layer-iter) - rad_offset*(iter)*rad
-            offset_total = offset * (layer - iter)
         else:
             rad_total = - rad * (iter+1) + rad_offset * (iter) * rad
-            offset_total = offset * (iter+1)
 
         for i in range(obj.RA.num):
-            loc_x = rad_total * math.sin((i+offset_total) * ic_angle)
-            loc_y = rad_total * math.cos((i+offset_total) * ic_angle)
+            if rad_offset < 0:
+                loc_x = rad_total * math.sin((i+offset_total) * ic_angle)
+                loc_y = rad_total * math.cos((i+offset_total) * ic_angle)
+            else:
+                loc_x = rad_total * -math.sin((i + offset_total) * ic_angle)
+                loc_y = rad_total * -math.cos((i + offset_total) * ic_angle)
             #copy or instance
             new = obj.copy()
             if obj.RA.use_instance == "INSTANCE":
