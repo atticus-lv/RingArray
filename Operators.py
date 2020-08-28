@@ -211,7 +211,7 @@ class RA_Props(PropertyGroup):
     )
 
     offset_angle: FloatProperty(
-        name='Offset', default=0,
+        name='Offset', default=0.5,
         min=0, max=1,
         update=OBJECT_OT_CreatRA.update,
     )

@@ -135,24 +135,27 @@ def use_circle(obj,parent):
     layer = obj.RA.layer
     rad = obj.RA.rad
     rad_offset = obj.RA.offset_rad
-    offset = obj.RA.offset_angle
+    offset = obj.RA.offset_angle - 0.5
 
     # reset active
     for iter in range(obj.RA.layer):
-        offset_total = - offset * (layer - iter + 1)
 
         if rad_offset <0:
             rad_total = rad * (layer-iter) - rad_offset*(iter)*rad
+
         else:
             rad_total = - rad * (iter+1) + rad_offset * (iter) * rad
 
         for i in range(obj.RA.num):
             if rad_offset < 0:
+                offset_total = offset * (layer-iter)
                 loc_x = rad_total * math.sin((i+offset_total) * ic_angle)
                 loc_y = rad_total * math.cos((i+offset_total) * ic_angle)
+
             else:
-                loc_x = rad_total * -math.sin((i + offset_total) * ic_angle)
-                loc_y = rad_total * -math.cos((i + offset_total) * ic_angle)
+                offset_total = offset * (iter + 1)
+                loc_x = rad_total * -math.sin((i+offset_total) * ic_angle)
+                loc_y = rad_total * -math.cos((i+offset_total) * ic_angle)
             #copy or instance
             new = obj.copy()
             if obj.RA.use_instance == "INSTANCE":
