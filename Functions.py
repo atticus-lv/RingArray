@@ -1,9 +1,8 @@
-import bpy,blf,bgl
-import math,re
-
-from mathutils import Vector
-from bpy.types import Object, Scene, Panel, Operator,PropertyGroup
-from bpy.props import *
+import bpy
+import blf
+import bgl
+import math
+import re
 
 
 def CN_ON(context):
@@ -200,3 +199,4 @@ def CreatArray(context):
     cage.select_set(True)
     obj.select_set(True)
     obj.hide_select = False
+    

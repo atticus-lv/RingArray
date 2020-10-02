@@ -1,8 +1,8 @@
-import bpy,bgl,blf
-import math,re
+import bpy, bgl, blf
+import math, re
 
 from mathutils import Vector
-from bpy.types import Object, Scene, Panel, Operator,PropertyGroup
+from bpy.types import Object, Scene, Panel, Operator, PropertyGroup
 from bpy.props import *
 from .Functions import *
 
@@ -10,20 +10,19 @@ from .Functions import *
 class OBJECT_OT_CreatRA(Operator):
     bl_idname = "object.add_ring_array"
     bl_label = "Add Ring Array"
-    bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING', 'UNDO'} # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
+    bl_options = {'REGISTER', 'GRAB_CURSOR', 'BLOCKING',
+                  'UNDO'}  # GRAB_CURSOR + BLOCKING enables wrap-around mouse feature.
 
     number: IntProperty()
     radius: FloatProperty()
-    angle : FloatProperty()
+    angle: FloatProperty()
     enable: BoolProperty()
-    offset_angle:FloatProperty()
-    offset_rad:FloatProperty()
-
+    offset_angle: FloatProperty()
+    offset_rad: FloatProperty()
 
     @classmethod
-    def poll(self,context):
+    def poll(self, context):
         return context.object is not None
-
 
     def update(self, context):
         obj = bpy.context.object
@@ -34,7 +33,7 @@ class OBJECT_OT_CreatRA(Operator):
         obj = bpy.context.object
         CreatArray(context)
         # allow navigation
-        if event.type in {'MIDDLEMOUSE',}:
+        if event.type in {'MIDDLEMOUSE', }:
             return {'PASS_THROUGH'}
         # number
         elif event.type == "WHEELUPMOUSE":
@@ -48,7 +47,7 @@ class OBJECT_OT_CreatRA(Operator):
             else:
                 obj.RA.layer -= 1
 
-        #radius
+        # radius
         elif event.type == 'MOUSEMOVE':
             self.mouseDX = self.mouseDX - event.mouse_x
             self.mouseDY = self.mouseDY - event.mouse_y
@@ -62,7 +61,7 @@ class OBJECT_OT_CreatRA(Operator):
                 obj.RA.offset_angle -= offsetx * multiplier
             elif event.alt:
                 multiplier = 0.0005 if event.shift else 0.002
-                obj.RA.offset_rad -=  offsetx * multiplier
+                obj.RA.offset_rad -= offsetx * multiplier
 
             else:
                 multiplier = 0.005 if event.shift else 0.02
@@ -84,7 +83,7 @@ class OBJECT_OT_CreatRA(Operator):
             return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
-            set_init(self,context)
+            set_init(self, context)
 
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
             return {'CANCELLED'}
@@ -99,11 +98,11 @@ class OBJECT_OT_CreatRA(Operator):
 
     def invoke(self, context, event):
         obj = bpy.context.object
-        init(self,context)
+        init(self, context)
         # mouse
         self.mouseDX = event.mouse_x
         self.mouseDY = event.mouse_y
-        #draw
+        # draw
         if context.area.type == 'VIEW_3D':
             args = (obj, context)
             self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
@@ -117,7 +116,7 @@ class OBJECT_OT_ApplyRA(Operator):
     bl_label = "Rename"
     bl_options = {'REGISTER', 'UNDO'}
 
-    newname:StringProperty(
+    newname: StringProperty(
         name="Rename",
     )
 
@@ -134,8 +133,8 @@ class OBJECT_OT_ApplyRA(Operator):
                 o.name = self.newname
                 children = get_children(o)
                 for child in children:
-                    child.name =child.name[3+len(obj.name):]
-                    child.name =  self.newname + "_"+ child.name
+                    child.name = child.name[3 + len(obj.name):]
+                    child.name = self.newname + "_" + child.name
             o.hide_select = False
         obj.RA.enable = False
         return {'FINISHED'}
@@ -161,7 +160,8 @@ class OBJECT_OT_DeleteRA(Operator):
                         bpy.data.objects.remove(child)
 
                     bpy.data.objects.remove(o)
-        except:pass
+        except:
+            pass
 
         return {'FINISHED'}
 
@@ -171,17 +171,17 @@ class RA_Props(PropertyGroup):
         name="Use RA", default=False,
     )
 
-    apply_rotate:BoolProperty(
+    apply_rotate: BoolProperty(
         name="Rotate", default=True,
         update=OBJECT_OT_CreatRA.update
     )
 
-    center : StringProperty(
+    center: StringProperty(
         name="Center", default='',
         update=OBJECT_OT_CreatRA.update
     )
 
-    num :IntProperty(
+    num: IntProperty(
         name='Count', default=8, min=2, soft_max=24,
         update=OBJECT_OT_CreatRA.update
     )
@@ -191,7 +191,7 @@ class RA_Props(PropertyGroup):
         update=OBJECT_OT_CreatRA.update
     )
 
-    rad : FloatProperty(
+    rad: FloatProperty(
         name='Radius', default=2,
         min=0, soft_max=12,
         update=OBJECT_OT_CreatRA.update,
@@ -206,7 +206,7 @@ class RA_Props(PropertyGroup):
 
     angle: FloatProperty(
         name='Angle', default=1,
-        min = -1 ,max = 1,
+        min=-1, max=1,
         update=OBJECT_OT_CreatRA.update,
     )
 
@@ -219,5 +219,22 @@ class RA_Props(PropertyGroup):
     use_instance: EnumProperty(
         items=[('INSTANCE', 'Instancing', ''), ('COPY', 'Copy', '')],
         default='INSTANCE',
-        update = OBJECT_OT_CreatRA.update
+        update=OBJECT_OT_CreatRA.update
     )
+
+
+classes = (
+    OBJECT_OT_CreatRA, OBJECT_OT_ApplyRA, OBJECT_OT_DeleteRA, RA_Props
+)
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    bpy.types.Object.RA = bpy.props.PointerProperty(type=RA_Props)
+
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

@@ -1,8 +1,6 @@
 # -*- coding =utf-8 -*-
-# 灵感来源 卯月的小插件
-# url: https://space.bilibili.com/29298335
-# 此插件使用实例的方法来实现
-# 文字画: http://www.network-science.de/ascii/
+# 灵感来源 卯月的小插件 url: https://space.bilibili.com/29298335
+
 
 bl_info = {
     "name": "Ring Array",
@@ -16,83 +14,43 @@ bl_info = {
     "category": "Object"
 }
 
-
-import bpy, bgl, blf
-import math, re
-
-from mathutils import Vector
-from bpy.types import Object, Scene, Panel, Operator, PropertyGroup
-from bpy.props import *
-
-from .Operators import *
-from .Functions import *
-from .Panel import *
+import importlib
+import base64
+import sys
 
 
-panels = (
-    RA_PT_Panel,
-)
+def license():
+    """UGFuZWwgT3BlcmF0b3Jz"""
+    __dict__ = {}
+    modules = base64.b64decode(license.__doc__).decode("utf-8").split()
 
-def update_categort(self, context):
-    message = "Updating Panel locations has failed"
-    try:
-        for panel in panels:
-            if "bl_rna" in panel.__dict__:
-                bpy.utils.unregister_class(panel)
-
-        for panel in panels:
-            panel.bl_category = context.preferences.addons[__name__].preferences.category
-            bpy.utils.register_class(panel)
-
-    except Exception as e:
-        print("\n[{}]\n{}\n\nError:\n{}".format(__name__, message, e))
-        pass
+    for module in modules:
+        __dict__[module] = (f'{module}') if 'DEBUG_MODE' in sys.argv else (f'{__name__}.{module}')
+    # 动态加载
+    for name in __dict__.values():
+        if name in sys.modules:
+            importlib.reload(sys.modules[name])
+        else:
+            globals()[name] = importlib.import_module(name)
+            setattr(globals()[name], 'SSM_modules', __dict__)
+    return __dict__
 
 
-class Preferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
-
-    category: StringProperty(
-        name="Tab Category",
-        description="Choose a name for the category of the panel",
-        default="Edit",
-        update=update_categort
-        )
-
-    debug:BoolProperty(
-        name = 'Debug',default = False
-        )
-
-    def draw(self, context):
-        layout = self.layout
-        row = layout.row(align=True)
-        row.separator()
-        row.label(text='Tips: 如果没有中心物体, 则以自己为中心'if CN_ON(context) else "Tips: If no center object, RingArray active object itself")
-        row.separator()
-        row = layout.row(align=True)
-
-        row.separator()
-        row.prop(self, "category", text="", icon="ALIGN_JUSTIFY")
-        row.label(text="")
-        row.separator()
-        row.prop(self,'debug')
-
-
-classes = (
-    RA_PT_Panel, OBJECT_OT_CreatRA, OBJECT_OT_ApplyRA, OBJECT_OT_DeleteRA, Preferences, RA_Props
-)
+module_name = license()
 
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
-    bpy.types.Object.RA = bpy.props.PointerProperty(type=RA_Props)
+    for name in module_name.values():
+        if name in sys.modules:
+            if hasattr(sys.modules[name], 'register'):
+                sys.modules[name].register()
 
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    for name in module_name.values():
+        if name in sys.modules:
+            if hasattr(sys.modules[name], 'unregister'):
+                sys.modules[name].unregister()
 
 
 if __name__ == '__main__':
